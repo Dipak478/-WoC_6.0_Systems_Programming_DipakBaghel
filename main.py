@@ -71,7 +71,11 @@ def add():
      filename=sys.argv[2]
      currdir=os.getcwd()
      file_path = os.path.join(currdir, filename)
+     if(os.path.exists(file_path)==0):
+         print("File Not Exists")
+         return
      file_hash = hashfile(file_path)
+
 
      jfilename=f"{currdir}/.VCS/branches/main/added.json"
      file_data=dict()
@@ -83,10 +87,22 @@ def add():
    
      json_data = json.dumps(file_data, indent=4)
      added_file_path = f"{currdir}/.VCS/branches/main/added.json"
-     index_file_path = f"{currdir}/.VCS/branches/main/index.json"
-
+    
+  
      with open(added_file_path, 'w') as json_file:
       json_file.write(json_data)
+
+     jfilename = f"{currdir}/.VCS/branches/main/index.json"
+     file_data=dict()
+     check_file = os.stat(jfilename).st_size
+     if(check_file != 0):
+       with open(jfilename,'r+') as file:
+        file_data = json.load(file)
+     file_data[filename]=(file_hash)
+   
+     json_data = json.dumps(file_data, indent=4)
+     index_file_path = f"{currdir}/.VCS/branches/main/index.json"
+        
      with open(index_file_path, 'w') as json_file:
       json_file.write(json_data)
 
@@ -132,9 +148,16 @@ def encode_file_content_to_base64(file_path):
 
 
 def commit():
-
+ 
+    
+   
     currdir=os.getcwd()
     fpath=f"{currdir}/.VCS/branches/main/added.json"
+    check_file = os.stat(fpath).st_size
+
+    if(check_file==0) :
+       print("No changes available")
+       return
  
     file_hash=hashfile(fpath)
     objectPath = f"{currdir}/.VCS/objects"
@@ -301,8 +324,8 @@ def log():
     myKeys.sort()
     sorted_log = {i: log[i] for i in myKeys}
 
-    for x in log:
-        fileName=log[x]
+    for x in sorted_log:
+        fileName=sorted_log[x]
         filePath=f"{objectPath}/{fileName}"
         with open(f"{filePath}", 'r') as file:
          tempD = json.load(file)
@@ -325,6 +348,90 @@ def log():
 
         
 
+def checkout():
+    hashvalue=f"{sys.argv[2]}.json"
+    
+    currdir=os.getcwd()
+    objectPath = f"{currdir}/.VCS/objects"
+
+    creation_time = os.path.getctime(f"{objectPath}/{hashvalue}")
+    hashtime = datetime.datetime.fromtimestamp(creation_time).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+    cfiles=os.listdir(objectPath)
+
+    for file in cfiles:
+        creation_time = os.path.getctime(f"{objectPath}/{file}")
+        creation_time_readable = datetime.datetime.fromtimestamp(creation_time).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+        if(creation_time_readable>hashtime):
+            os.remove(f"{objectPath}/{file}")
+   
+    state={}
+
+    with open(f"{objectPath}/{hashvalue}", 'r') as file:
+        state = json.load(file)
+    
+    all={}
+    all=state["all"]
+
+    all_file=os.listdir(currdir)
+
+    for file in all_file:
+          if(file=="main.py"):continue
+          destination_path=os.path.join(currdir,file)
+          if(os.path.isfile(os.path.join(currdir,file))):
+              if file in all.keys():
+                  decodedContent=base64.b64decode(all[file])
+
+                  with open(destination_path, 'wb') as file:
+                        file.write(decodedContent)
+              else :
+                os.remove(destination_path)
+  
+    print("Done Successfully")
+    
+def push():
+    destPath=sys.argv[2]
+    match="0"
+    last=""
+    currdir=os.getcwd()
+    objectPath = f"{currdir}/.VCS/objects"
+    cfiles=os.listdir(objectPath)
+    if(cfiles.st_size()==0):
+         print("No commits yet")
+
+    for file in cfiles: 
+         creation_time = os.path.getctime(f"{objectPath}/{file}")
+         creation_time_readable = datetime.datetime.fromtimestamp(creation_time).strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]
+         if(creation_time_readable>match):
+            match=creation_time_readable
+            last=file
+
+    last_commit_path=f"{objectPath}/{last}"
+    state={}
+
+    with open(f"{last_commit_path}", 'r') as file:
+        state = json.load(file)
+    
+    all={}
+    all=state["all"]
+
+    for file in all:
+        decodedContent=base64.b64decode(all[file])
+        file_path = os.path.join(destPath, file)
+
+        with open(file_path, 'wb') as f:
+         f.write(decodedContent)
+    print("Done Successfully")
+  
+def rmadd():
+
+    currdir=os.getcwd()
+    fpath=f"{currdir}/.VCS/branches/main/added.json"
+    with open(fpath, 'w') as file:
+           file.write("")
+
+    print("Done successfully")
+
+        
 
 
 if __name__ == "__main__":
@@ -343,6 +450,12 @@ if __name__ == "__main__":
                  rmcommit()
         if command == "log" :
                 log()
+        if command == "checkout" :
+                checkout()
+        if command == "push":
+                push()
+        if command == "rmadd":
+                rmadd()
 
     else :
         print("VCS - A Version Control System \n\nVCS init - Initialize a new VCS repository \n\n\
